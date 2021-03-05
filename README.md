@@ -29,7 +29,7 @@ Adopt a Devops approach in your feature releases using IBM Cloud App Configurati
 
 ## Create Toolchain 
 
-[![Deploy To IBM Cloud](https://console.bluemix.net/devops/graphics/create_toolchain_button.png)](https://github.com/ibm-cloud-appconfiguration/appconfiguration-toolchain)
+[![Deploy To IBM Cloud](https://console.bluemix.net/devops/graphics/create_toolchain_button.png)](https://cloud.ibm.com/devops/setup/deploy?repository=https://github.com/ibm-cloud-appconfiguration/appconfiguration-toolchain)
 
 Once the pipeline is created, populate the `Environment Properties` for each of the pipeline and update the details.
 
