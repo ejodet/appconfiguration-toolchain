@@ -1,0 +1,97 @@
+apiVersion: tekton.dev/v1beta1
+kind: TriggerTemplate
+metadata:
+  name: trigger-template
+spec:
+  params:
+    - name: repository
+      description: the git repo
+    - name: branch
+      description: the branch for the git repo
+    - name: apikey
+      description: the ibmcloud api key
+    - name: region
+      description: Region of the App Configuration instance
+    - name: resourceGroup
+      description: Region of the App Configuration instance
+    - name: imageUrl
+      description: url of the built image
+    - name: gitToken
+      description: git Token to access GITHUB api      
+    - name: clusterName
+      description: The IBM Cloud Kubernetes cluster name           
+  resourcetemplates:
+    - apiVersion: v1
+      kind: Secret
+      metadata:
+        name: cd-secret
+      type: Opaque
+      stringData:
+        API_KEY: $(params.apikey)
+        parameters: $(params.parameters)
+        GIT_TOKEN: $(params.gitToken)
+        REGION: ${params.region}
+        RESOURCEGROUP: ${params.resourceGroup}
+        IMAGEURL: ${params.imageUrl}
+        CLUSTERNAME: ${params.clusterName}
+    - apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: pipelinerun-$(uid)-pvc
+      spec:
+        resources:
+          requests:
+            storage:  5Gi
+        volumeMode: Filesystem
+        accessModes:
+          - ReadWriteOnce
+    - apiVersion: tekton.dev/v1alpha1
+      kind: PipelineRun
+      metadata:
+        name: pipelinerun-$(uid)
+      spec:
+        pipelineRef:
+          name: pipeline
+        params:
+          - name: pipeline-pvc
+            value: pipelinerun-$(uid)-pvc
+          - name: gitToken
+            value: $(params.gitToken)
+          - name: repository
+            value: $(params.repository)
+          - name: branch
+            value: $(params.branch)
+          - name: apikey
+            value: $(params.apikey)
+          - name: resourceGroup
+            value: $(params.resourceGroup)
+          - name: imageUrl
+            value: $(params.imageUrl)            
+          - name: region
+            value: $(params.region)
+          - name: clusterName
+            value: $(params.clusterName)               
+        workspaces:
+          - name: pipeline-ws
+            persistentVolumeClaim:
+              claimName: pipelinerun-$(uid)-pvc                      
+---
+apiVersion: tekton.dev/v1alpha1
+kind: TriggerBinding
+metadata:
+  name: trigger-binding
+spec:
+  params:
+    - name: branch
+      value: $(params.branch)
+---
+apiVersion: tekton.dev/v1alpha1
+kind: EventListener
+metadata:
+  name: event-listener
+spec:
+  triggers:
+    - binding:
+        name: trigger-binding
+      template:
+        name: trigger-template

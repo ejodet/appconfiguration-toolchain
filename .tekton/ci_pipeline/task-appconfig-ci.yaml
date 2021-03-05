@@ -1,0 +1,156 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: appconfiguration-ci
+spec:
+  params:
+    - name: task-pvc
+      description: the output pvc - this is the name of the PVC that is mounted for the execution of the task
+    - name: repository
+      description: the git repo
+    - name: branch
+      description: the branch for the git repo
+      default: master
+    - name: guid
+      description: Id of the App Configuration instance
+    - name: region
+      description: Region of the App Configuration instance
+    - name: collection_id
+      description: name of the App Configuration collection
+    - name: featureFilePath
+      description: JSON file path where the App Configuration feature details are stored
+    - name: baseUrl
+      description: JSON file path where the App Configuration feature details are stored
+      default: https://apprapp.cloud.ibm.com/apprapp/feature/v1/instances/         
+    - name: continuous-delivery-context-secret
+      description: name of the configmap containing the continuous delivery pipeline context secrets
+      default: cd-secret
+  stepTemplate:
+    env:
+      - name: GIT_TOKEN
+        valueFrom:
+          secretKeyRef:
+            name: $(params.continuous-delivery-context-secret)
+            key: GIT_TOKEN
+      - name: API_KEY
+        valueFrom:
+          secretKeyRef:
+            name: $(params.continuous-delivery-context-secret)
+            key: API_KEY                                
+  steps:
+    - name: git-clone
+      image: icr.io/continuous-delivery/pipeline/tekton/alpine-git:latest
+      workingDir: /artifacts
+      env:
+        - name: REPOSITORY
+          value: $(params.repository)
+        - name: BRANCH
+          value: $(params.branch)
+      command: ["/bin/sh", "-c"]
+      args:
+        - |
+          set -e;          
+          replacestr=$GIT_TOKEN@github
+          GIT_URL=${REPOSITORY/github/$replacestr}
+          repo_exists=$(git ls-remote $GIT_URL 2>&1 | cut -d':' -f2 | head -1 | awk '{print $1,$2,$3}')
+          if [ "$repo_exists" == "Repository not found." ]; then
+            echo "Repo does not exist"
+            exit 1
+          else
+            echo "Repo exists"
+          fi
+          echo $BRANCH
+          git clone -b $BRANCH $GIT_URL
+
+      volumeMounts:
+        - mountPath: /artifacts
+          name: task-volume
+        - mountPath: /steps
+          name: steps-volume
+    - name: appconfig-sync
+      image: ibmcom/pipeline-base-image
+      workingDir: /artifacts
+      env:
+        - name: GUID
+          value: $(params.guid)
+        - name: COLLECTIONID
+          value: $(params.collection_id)
+        - name: BRANCH
+          value: $(params.branch)
+        - name: REPOSITORY
+          value: $(params.repository)
+        - name: BASEURL
+          value: $(params.baseUrl)                      
+        - name: REGION
+          value: $(params.region)
+        - name: FEATUREFILEPATH
+          value: $(params.featureFilePath)
+        - name: BUILD_NUMBER
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.annotations['devops.cloud.ibm.com/build-number']                       
+      command: ["/bin/bash", "-c"]
+      args:
+        - |
+          set -x -o pipefail;
+          folderName=$(echo ${REPOSITORY##*/})
+          #customize as per the app folder structure
+          cd $folderName/nodejs
+          if [ -z "$REGION" ]
+          then
+            echo "\$REGION is empty"
+            exit 1
+          else
+            subdomain=$REGION.apprapp
+            baseUrl=${BASEURL/apprapp/$subdomain}
+            
+            configUrl="${baseUrl}${GUID}/collections/${COLLECTIONID}/config"
+            until $(curl -H "Authorization: $API_KEY" $configUrl | jq . > featuretemp.json); do
+               printf 'waiting...'
+               sleep 5
+            done
+            
+            touch $FEATUREFILEPATH
+            diff -wB  "$FEATUREFILEPATH" featuretemp.json  >/dev/null;REPLY=$?
+            #echo "Reply is $REPLY"
+            if [ ${REPLY} -eq 0 ]
+            then
+                echo "No new App Configuration updates.  Application is ready to be deployed"
+            else
+              localBranchName=acsync_$BUILD_NUMBER
+              git branch $localBranchName $BRANCH     
+              git checkout $localBranchName         
+  
+             echo "Files are different"
+             cp featuretemp.json "$FEATUREFILEPATH"
+             rm -rf featuretemp.json
+             userName=$(curl -H "Authorization: token $GIT_TOKEN" https://api.github.com/user | jq -r '.login')
+             email=$(curl -H "Authorization: token $GIT_TOKEN" https://api.github.com/user/emails | jq -r '.[0].email')             
+             git config user.name "$userName"
+             git config user.email "$email"             
+             git add .
+             git commit -m "App Configuration value changes"
+             git push --set-upstream origin $localBranchName
+             title="App Configuration Value Changes"
+             curl -H "Content-Type: application/json" -H "Authorization: token $GIT_TOKEN" https://api.github.com/repos/<owner>/<apprepo>/pulls -d '{"title":"'"${title}"'","head":"'$localBranchName'","base":"'$BRANCH'"}'
+             echo "New App Configuration updates are committed to the repo.  PR needs to be approved to proceed."
+             exit 1
+            fi
+          fi
+      volumeMounts:
+        - mountPath: /artifacts
+          name: task-volume
+        - mountPath: /steps
+          name: steps-volume
+  volumes:
+    - name: task-volume
+      persistentVolumeClaim:
+        claimName: $(params.task-pvc)
+    - name: steps-volume
+      emptyDir: {}
+    - name: cd-config-volume
+      configMap:
+        name: toolchain
+        items:
+        - key: toolchain.json
+          path: toolchain.json
