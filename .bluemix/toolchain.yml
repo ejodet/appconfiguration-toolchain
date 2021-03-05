@@ -1,0 +1,95 @@
+version: 2
+template:
+  name: Build your own toolchain
+  description: appconfiguration-toolchain
+  required:
+  - githubconsolidated01
+toolchain:
+  name: appconfiguration-toolchain
+services:
+  pipeline00:
+    parameters:
+      label: appconfiguration-cd
+      type: tekton
+      name: appconfiguration-cd
+      ui_pipeline: true
+      configuration:
+        env:
+          githubconsolidated01: githubconsolidated01
+        content:
+          $text: pipeline_pipeline00.yml
+      services:
+      - githubconsolidated01
+    service_id: pipeline
+  githubconsolidated01:
+    parameters:
+      extra_capabilities:
+      - capability_id: git.issues
+        display_name: Issues
+        dashboard_url: https://github.com/jojustin/appconfiguration-toolchain/issues
+        label: appconfiguration-toolchain
+        tags:
+        - think
+        - code
+        enabled: false
+        readme: false
+      label: appconfiguration-toolchain
+      type: link
+      legal: false
+      git_id: github
+      blind_connection: false
+      owner_id: jojustin
+      repo_url: https://github.com/jojustin/appconfiguration-toolchain.git
+      private_repo: false
+      has_issues: false
+      auto_init: false
+      enable_traceability: false
+      authorized: github
+      integration_owner: IBMid-110000R23C
+      repo_name: appconfiguration-toolchain
+      api_root_url: '****'
+      token_url: '****'
+    service_id: githubconsolidated
+  pipeline02:
+    parameters:
+      label: appconfiguration-sync
+      type: tekton
+      name: appconfiguration-sync
+      ui_pipeline: true
+      configuration:
+        env:
+          githubconsolidated01: githubconsolidated01
+        content:
+          $text: pipeline_pipeline02.yml
+      services:
+      - githubconsolidated01
+    service_id: pipeline
+  githubconsolidated03:
+    parameters:
+      extra_capabilities:
+      - capability_id: git.issues
+        display_name: Issues
+        dashboard_url: https://github.com/jojustin/appconfiguration-samples/issues
+        label: appconfiguration-samples
+        tags:
+        - think
+        - code
+        enabled: false
+        readme: false
+      label: appconfiguration-samples
+      type: link
+      legal: false
+      git_id: github
+      blind_connection: false
+      owner_id: jojustin
+      repo_url: https://github.com/jojustin/appconfiguration-samples.git
+      private_repo: false
+      has_issues: false
+      auto_init: false
+      enable_traceability: true
+      authorized: github
+      integration_owner: IBMid-110000R23C
+      repo_name: appconfiguration-samples
+      api_root_url: '****'
+      token_url: '****'
+    service_id: githubconsolidated
