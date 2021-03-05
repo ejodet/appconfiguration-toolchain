@@ -7,17 +7,17 @@ template:
 toolchain:
   name: appconfiguration-toolchain
 services:
-  pipeline00:
+  pipeline02:
     parameters:
-      label: appconfiguration-cd
+      label: appconfiguration-sync
       type: tekton
-      name: appconfiguration-cd
+      name: appconfiguration-sync
       ui_pipeline: true
       configuration:
         env:
           githubconsolidated01: githubconsolidated01
         content:
-          $text: pipeline_pipeline00.yml
+          $text: pipeline_pipeline02.yml
       services:
       - githubconsolidated01
     service_id: pipeline
@@ -49,18 +49,21 @@ services:
       repo_name: appconfiguration-toolchain
       api_root_url: '****'
       token_url: '****'
+      legal_label: ""
+      custom_host: ""
+      namespace_table: ""
     service_id: githubconsolidated
-  pipeline02:
+  pipeline00:
     parameters:
-      label: appconfiguration-sync
+      label: appconfiguration-cd
       type: tekton
-      name: appconfiguration-sync
+      name: appconfiguration-cd
       ui_pipeline: true
       configuration:
         env:
           githubconsolidated01: githubconsolidated01
         content:
-          $text: pipeline_pipeline02.yml
+          $text: pipeline_pipeline00.yml
       services:
       - githubconsolidated01
     service_id: pipeline

@@ -15,7 +15,7 @@ properties:
   value: master
 - name: collection_id
   type: text
-  value: blue-charge
+  value: ""
 - name: featureFilePath
   type: text
   value: feature.json
@@ -24,17 +24,16 @@ properties:
   value: ""
 - name: guid
   type: text
-  value: ea8acf79-b17d-431e-a94d-e9693b54fae2
+  value: ""
 - name: region
   type: text
-  value: eu-gb
+  value: ""
 - name: repository
   type: text
-  value: https://github.com/jojustin/appconfiguration-samples
+  value: ""
 triggers:
 - concurrency:
     limited: false
   eventListener: event-listener
   name: App Configuration Sync
-  properties: []
   type: manual

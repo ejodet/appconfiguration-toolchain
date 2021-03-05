@@ -21,13 +21,13 @@ properties:
   value: ""
 - name: imageUrl
   type: text
-  value: us.icr.io/appsvcsamples/apprapp-bluecharge
+  value: ""
 - name: region
   type: text
   value: us-south
 - name: repository
   type: text
-  value: https://github.com/jojustin/appconfiguration-samples
+  value: ""
 - name: resourceGroup
   type: text
   value: default
@@ -35,5 +35,4 @@ triggers:
 - eventListener: event-listener
   is_public_worker: true
   name: App Configuration Deploy
-  properties: []
   type: manual
