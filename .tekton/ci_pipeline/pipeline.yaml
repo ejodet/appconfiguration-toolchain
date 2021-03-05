@@ -1,0 +1,39 @@
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: pipeline
+spec:
+  params:
+    - name: pipeline-pvc
+      description: the pipeline pvc name
+    - name: repository
+      description: the git repo
+    - name: branch
+      description: the branch for the git repo
+    - name: region
+      description: Region of the App Configuration instance
+    - name: featureFilePath
+      description: JSON file path where the App Configuration feature details are stored
+    - name: guid
+      description: Id of the App Configuration instance
+    - name: collection_id
+      description: name of the App Configuration collection
+  tasks:
+    - name: appconfiguration-ci
+      taskRef: 
+        name: appconfiguration-ci
+      params:
+        - name: repository
+          value: $(params.repository)
+        - name: branch
+          value: $(params.branch)
+        - name: guid
+          value: $(params.guid)
+        - name: region
+          value: $(params.region)
+        - name: collection_id
+          value: $(params.collection_id)
+        - name: featureFilePath
+          value: $(params.featureFilePath)
+        - name: task-pvc
+          value: $(params.pipeline-pvc)

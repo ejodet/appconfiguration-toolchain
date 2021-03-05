@@ -1,0 +1,177 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: appconfiguration-cd
+spec:
+  params:
+    - name: task-pvc
+      description: the output pvc - this is the name of the PVC that is mounted for the execution of the task
+    - name: repository
+      description: the git repo
+    - name: branch
+      description: the branch for the git repo
+      default: master
+    - name: region
+      description: Region of the App Configuration instance
+    - name: apikey
+      description: the ibmcloud api key
+    - name: resourceGroup
+      description: Region of the App Configuration instance
+    - name: imageUrl
+      description: url of the built image
+    - name: clusterName
+      description: The IBM Cloud Kubernetes cluster name
+    - name: continuous-delivery-context-secret
+      description: name of the configmap containing the continuous delivery pipeline context secrets
+      default: cd-secret
+  stepTemplate:
+    env:
+      - name: GIT_TOKEN
+        valueFrom:
+          secretKeyRef:
+            name: $(params.continuous-delivery-context-secret)
+            key: GIT_TOKEN            
+  steps:
+    - name: git-clone
+      image: icr.io/continuous-delivery/pipeline/tekton/alpine-git:latest
+      workingDir: /artifacts
+      env:
+        - name: REPOSITORY
+          value: $(params.repository)
+        - name: BRANCH
+          value: $(params.branch)
+      command: ["/bin/sh", "-c"]
+      args:
+        - |
+          set -e;          
+          replacestr=$GIT_TOKEN@github
+          GIT_URL=${REPOSITORY/github/$replacestr}
+          repo_exists=$(git ls-remote $GIT_URL 2>&1 | cut -d':' -f2 | head -1 | awk '{print $1,$2,$3}')
+          if [ "$repo_exists" == "Repository not found." ]; then
+            echo "Repo does not exist"
+            exit 1
+          else
+            echo "Repo exists"
+          fi
+          echo $BRANCH
+          git clone -b $BRANCH $GIT_URL
+      volumeMounts:
+        - mountPath: /artifacts
+          name: task-volume
+        - mountPath: /steps
+          name: steps-volume
+    - name: docker-build
+      image: ibmcom/pipeline-base-image
+      workingDir: /artifacts
+      env:
+        - name: REGION
+          value: $(params.region)
+        - name: IMAGEURL
+          value: $(params.imageUrl)        
+        - name: RESOURCEGROUP
+          value: $(params.resourceGroup)
+        - name: REPOSITORY
+          value: $(params.repository)          
+        - name: BUILD_NUMBER
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.annotations['devops.cloud.ibm.com/build-number']             
+        - name: API_KEY 
+          valueFrom:
+            secretKeyRef:
+              name: $(params.continuous-delivery-context-secret)
+              key: API_KEY        
+        - name: GIT_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: $(params.continuous-delivery-context-secret)
+              key: GIT_TOKEN                                 
+      command: ["/bin/bash", "-c"]
+      args:
+        - |
+          set -e -x -o pipefail;
+          BUILT_IMAGE="$IMAGEURL:$BUILD_NUMBER"
+          echo "built image $BUILT_IMAGE"
+          folderName=$(echo ${REPOSITORY##*/})
+          cd $folderName/nodejs
+          ibmcloud config --check-version false
+          ibmcloud login -a https://cloud.ibm.com -r $REGION --apikey $API_KEY    
+          ibmcloud target -g $RESOURCEGROUP      
+          ibmcloud cr build -t $BUILT_IMAGE .
+          #BUILT_IMAGE="$REGISTRY_URL/$REGISTRY_NAMESPACE/$IMAGE_NAME:$BUILD_NUMBER"
+          echo "image is $BUILT_IMAGE"
+          echo "Docker Image has been pushed to us.icr.io"
+      volumeMounts:
+        - mountPath: /artifacts
+          name: task-volume
+        - mountPath: /steps
+          name: steps-volume
+    - name: deploy
+      image: ibmcom/pipeline-base-image
+      workingDir: /artifacts
+      env:
+        - name: imageUrl
+          value: $(params.imageUrl)
+        - name: REGION
+          value: $(params.region)             
+        - name: clusterName
+          value: $(params.clusterName)
+        - name: resourceGroup
+          value: $(params.resourceGroup)
+        - name: REPOSITORY
+          value: $(params.repository)          
+        - name: BUILD_NUMBER
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.annotations['devops.cloud.ibm.com/build-number']   
+        - name: API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: $(params.continuous-delivery-context-secret)
+              key: API_KEY  
+      command: ["/bin/bash", "-c"]
+      args:
+        - |
+          set -e -x -o pipefail
+          echo "cluster name from param is $clusterName"
+          folderName=$(echo ${REPOSITORY##*/})
+          cd $folderName/nodejs
+          BUILT_IMAGE="$imageUrl:$BUILD_NUMBER"
+          ibmcloud config --check-version false
+          ibmcloud login -a https://cloud.ibm.com -r $REGION --apikey $API_KEY
+          ibmcloud target -g $resourceGroup
+          ibmcloud cr info
+          
+          ibmcloud ks cluster ls
+          ibmcloud ks cluster config --cluster $clusterName
+          
+          #kubectl apply -f kube/secret.yaml
+          #kubectl apply -f kube/statefulsetmongo.yaml
+          #kubectl apply -f kube/servicemongo.yaml
+          #kubectl get secret all-icr-io --namespace=default -o yaml | grep -v '^\s*namespace:\s' | kubectl apply --namespace=appconfig -f -
+          
+          DEPLOYMENT_FILE="kube/deployment.yaml"
+          echo "deployment file $DEPLOYMENT_FILE"
+          sed -i 's=$IMAGE='"$BUILT_IMAGE"'=g' $DEPLOYMENT_FILE
+          
+          cat $DEPLOYMENT_FILE
+          echo "kubectl apply -f $DEPLOYMENT_FILE"
+          kubectl apply -f $DEPLOYMENT_FILE
+          kubectl apply -f kube/servicenode.yaml
+      volumeMounts:
+        - mountPath: /artifacts
+          name: task-volume
+        - mountPath: /steps
+          name: steps-volume
+  volumes:
+    - name: task-volume
+      persistentVolumeClaim:
+        claimName: $(params.task-pvc)
+    - name: steps-volume
+      emptyDir: {}
+    - name: cd-config-volume
+      configMap:
+        name: toolchain
+        items:
+        - key: toolchain.json
+          path: toolchain.json

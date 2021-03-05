@@ -1,0 +1,39 @@
+inputs:
+- branch: master
+  path: .tekton/ci_pipeline
+  type: git
+  service: ${githubconsolidated01}
+properties:
+- name: apikey
+  type: secure
+  value: ""
+- name: baseUrl
+  type: text
+  value: https://apprapp.cloud.ibm.com/apprapp/feature/v1/instances/
+- name: branch
+  type: text
+  value: master
+- name: collection_id
+  type: text
+  value: ""
+- name: featureFilePath
+  type: text
+  value: feature.json
+- name: gitToken
+  type: secure
+  value: ""
+- name: guid
+  type: text
+  value: ""
+- name: region
+  type: text
+  value: ""
+- name: repository
+  type: text
+  value: ""
+triggers:
+- concurrency:
+    limited: false
+  eventListener: event-listener
+  name: App Configuration Sync
+  type: manual

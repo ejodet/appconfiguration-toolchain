@@ -1,0 +1,38 @@
+inputs:
+- branch: master
+  path: .tekton/cd_pipeline
+  type: git
+  service: ${githubconsolidated01}
+properties:
+- name: apikey
+  type: secure
+  value: ""
+- name: baseUrl
+  type: text
+  value: https://apprapp.cloud.ibm.com/apprapp/feature/v1/instances/
+- name: branch
+  type: text
+  value: master
+- name: clusterName
+  type: text
+  value: mycluster-free
+- name: gitToken
+  type: secure
+  value: ""
+- name: imageUrl
+  type: text
+  value: ""
+- name: region
+  type: text
+  value: us-south
+- name: repository
+  type: text
+  value: ""
+- name: resourceGroup
+  type: text
+  value: default
+triggers:
+- eventListener: event-listener
+  is_public_worker: true
+  name: App Configuration Deploy
+  type: manual
